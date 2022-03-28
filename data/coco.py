@@ -33,8 +33,8 @@ class COCODetection(data.Dataset):
         self.preproc = preproc
         self.target_transform = target_transform
         self.name = dataset_name
-        self.ids = list()
-        self.annotations = list()
+        self.ids = []
+        self.annotations = []
         self._view_map = {
             'minival2014' : 'val2014',          # 5k val2014 subset
             'valminusminival2014' : 'val2014',  # val2014 \setminus minival2014
@@ -43,9 +43,7 @@ class COCODetection(data.Dataset):
 
         for (year, image_set) in image_sets:
             coco_name = image_set+year
-            data_name = (self._view_map[coco_name]
-                        if coco_name in self._view_map
-                        else coco_name)
+            data_name = self._view_map.get(coco_name, coco_name)
             annofile = self._get_ann_file(coco_name)
             _COCO = COCO(annofile)
             self._COCO = _COCO
@@ -72,35 +70,32 @@ class COCODetection(data.Dataset):
         """
         # Example image path for index=119993:
         #   images/train2014/COCO_train2014_000000119993.jpg
-        file_name = ('COCO_' + name + '_' +
-                     str(index).zfill(12) + '.jpg')
+        file_name = ((f'COCO_{name}_' + str(index).zfill(12)) + '.jpg')
         image_path = os.path.join(self.root, 'images',
                               name, file_name)
-        assert os.path.exists(image_path), \
-                'Path does not exist: {}'.format(image_path)
+        assert os.path.exists(image_path), f'Path does not exist: {image_path}'
         return image_path
 
 
     def _get_ann_file(self, name):
         prefix = 'instances' if name.find('test') == -1 \
                 else 'image_info'
-        return os.path.join(self.root, 'annotations',
-                        prefix + '_' + name + '.json')
+        return os.path.join(self.root, 'annotations', f'{prefix}_{name}.json')
 
 
     def _load_coco_annotations(self, coco_name, indexes, _COCO):
-        cache_file=os.path.join(self.cache_path,coco_name+'_gt_roidb.pkl')
+        cache_file = os.path.join(self.cache_path, f'{coco_name}_gt_roidb.pkl')
         if os.path.exists(cache_file):
             with open(cache_file, 'rb') as fid:
                 roidb = pickle.load(fid)
-            print('{} gt roidb loaded from {}'.format(coco_name,cache_file))
+            print(f'{coco_name} gt roidb loaded from {cache_file}')
             return roidb
 
         gt_roidb = [self._annotation_from_index(index, _COCO)
                     for index in indexes]
         with open(cache_file, 'wb') as fid:
             pickle.dump(gt_roidb,fid,pickle.HIGHEST_PROTOCOL)
-        print('wrote gt roidb to {}'.format(cache_file))
+        print(f'wrote gt roidb to {cache_file}')
         return gt_roidb
 
 
@@ -241,7 +236,7 @@ class COCODetection(data.Dataset):
         eval_file = os.path.join(output_dir, 'detection_results.pkl')
         with open(eval_file, 'wb') as fid:
             pickle.dump(coco_eval, fid, pickle.HIGHEST_PROTOCOL)
-        print('Wrote COCO eval results to: {}'.format(eval_file))
+        print(f'Wrote COCO eval results to: {eval_file}')
 
     def _coco_results_one_category(self, boxes, cat_id):
         results = []
@@ -273,7 +268,7 @@ class COCODetection(data.Dataset):
             results.extend(self._coco_results_one_category(all_boxes[cls_ind],
                                                            coco_cat_id))
 
-        print('Writing results json to {}'.format(res_file))
+        print(f'Writing results json to {res_file}')
         with open(res_file, 'w') as fid:
             json.dump(results, fid)
 

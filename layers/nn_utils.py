@@ -32,37 +32,46 @@ class TUM(nn.Module):
         self.planes = 2 * self.input_planes
         self.first_level = first_level
         self.scales = scales
-        self.in1 = input_planes + side_channel if not first_level else input_planes
+        self.in1 = input_planes if first_level else input_planes + side_channel
 
         self.layers = nn.Sequential()
-        self.layers.add_module('{}'.format(len(self.layers)), BasicConv(self.in1, self.planes, 3, 2, 1))
+        self.layers.add_module(
+            f'{len(self.layers)}', BasicConv(self.in1, self.planes, 3, 2, 1)
+        )
+
         for i in range(self.scales-2):
-            if not i == self.scales - 3:
+            if i != self.scales - 3:
                 self.layers.add_module(
-                        '{}'.format(len(self.layers)),
-                        BasicConv(self.planes, self.planes, 3, 2, 1)
-                        )
+                    f'{len(self.layers)}',
+                    BasicConv(self.planes, self.planes, 3, 2, 1),
+                )
+
             else:
                 self.layers.add_module(
-                        '{}'.format(len(self.layers)),
-                        BasicConv(self.planes, self.planes, 3, 1, 0)
-                        )
+                    f'{len(self.layers)}',
+                    BasicConv(self.planes, self.planes, 3, 1, 0),
+                )
+
         self.toplayer = nn.Sequential(BasicConv(self.planes, self.planes, 1, 1, 0))
-        
+
         self.latlayer = nn.Sequential()
-        for i in range(self.scales-2):
+        for _ in range(self.scales-2):
             self.latlayer.add_module(
-                    '{}'.format(len(self.latlayer)),
-                    BasicConv(self.planes, self.planes, 3, 1, 1)
-                    )
-        self.latlayer.add_module('{}'.format(len(self.latlayer)),BasicConv(self.in1, self.planes, 3, 1, 1))
+                f'{len(self.latlayer)}',
+                BasicConv(self.planes, self.planes, 3, 1, 1),
+            )
+
+        self.latlayer.add_module(
+            f'{len(self.latlayer)}', BasicConv(self.in1, self.planes, 3, 1, 1)
+        )
+
 
         if self.is_smooth:
-            smooth = list()
-            for i in range(self.scales-1):
-                smooth.append(
-                        BasicConv(self.planes, self.planes, 1, 1, 0)
-                        )
+            smooth = [
+                BasicConv(self.planes, self.planes, 1, 1, 0)
+                for _ in range(self.scales - 1)
+            ]
+
             self.smooth = nn.Sequential(*smooth)
 
     def _upsample_add(self, x, y, fuse_type='interp'):
@@ -80,20 +89,23 @@ class TUM(nn.Module):
         for i in range(len(self.layers)):
             x = self.layers[i](x)
             conved_feat.append(x)
-        
+
         deconved_feat = [self.toplayer[0](conved_feat[-1])]
-        for i in range(len(self.latlayer)):
-            deconved_feat.append(
-                    self._upsample_add(
-                        deconved_feat[i], self.latlayer[i](conved_feat[len(self.layers)-1-i])
-                        )
-                    )
+        deconved_feat.extend(
+            self._upsample_add(
+                deconved_feat[i],
+                self.latlayer[i](conved_feat[len(self.layers) - 1 - i]),
+            )
+            for i in range(len(self.latlayer))
+        )
+
         if self.is_smooth:
             smoothed_feat = [deconved_feat[0]]
-            for i in range(len(self.smooth)):
-                smoothed_feat.append(
-                        self.smooth[i](deconved_feat[i+1])
-                        )
+            smoothed_feat.extend(
+                self.smooth[i](deconved_feat[i + 1])
+                for i in range(len(self.smooth))
+            )
+
             return smoothed_feat
         return deconved_feat
 
@@ -168,20 +180,10 @@ def check_argu(key, value):
           'se_resnet50','se_resnet101', 'senet154', 'se_resnet152', 
           'se_resnext50_32x4d', 'se_resnext101_32x4d'], 'Not implemented yet!' # you can do this yourself
 
-    elif key == 'net_family':
-        assert value in ['vgg', 'res'], 'Only support vgg and res family Now'
     elif key == 'base_out':
         assert len(value) == 2, 'We have to ensure that the base feature is formed with 2 backbone features'
-    elif key == 'planes':
-        pass # No rule for plane now.
+    elif key == 'net_family':
+        assert value in ['vgg', 'res'], 'Only support vgg and res family Now'
     elif key == 'num_levels':
         assert value>1, 'At last, you should leave 2 levels'
-    elif key == 'num_scales':
-        pass # num_scales should equals to len(step_pattern), len(size_pattern)-1,
-    elif key == 'sfam':
-        pass
-    elif key == 'smooth':
-        pass
-    elif key == 'num_classes':
-        pass
     return True

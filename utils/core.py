@@ -19,14 +19,11 @@ def set_logger(status):
     if status:
         from logger import Logger
         date = time.strftime("%m_%d_%H_%M") + '_log'
-        log_path = './logs/'+ date
+        log_path = f'./logs/{date}'
         if os.path.exists(log_path):
             shutil.rmtree(log_path)
         os.makedirs(log_path)
-        logger = Logger(log_path)
-        return logger
-    else:
-        pass
+        return Logger(log_path)
 
 def anchors(cfg):
     return mk_anchors(cfg.model.input_size,
@@ -45,10 +42,7 @@ def init_net(net, cfg, resume_net):
         new_state_dict = OrderedDict()
         for k, v in state_dict.items():
             head = k[:7]
-            if head == 'module.':
-                name = k[7:]
-            else:
-                name = k
+            name = k[7:] if head == 'module.' else k
             new_state_dict[name] = v
         net.load_state_dict(new_state_dict,strict=False)
 
@@ -101,23 +95,34 @@ def print_train_log(iteration, print_epochs, info_list):
         cprint('Time:{}||Epoch:{}||EpochIter:{}/{}||Iter:{}||Loss_L:{:.4f}||Loss_C:{:.4f}||Batch_Time:{:.4f}||LR:{:.7f}'.format(*info_list), 'green')
        
 def print_info(info, _type=None):
-    if _type is not None:
-        if isinstance(info,str):
-            cprint(info, _type[0], attrs=[_type[1]])
-        elif isinstance(info,list):
-            for i in range(info):
-                cprint(i, _type[0], attrs=[_type[1]])
-    else:
+    if _type is None:
         print(info)
+
+    elif isinstance(info,str):
+        cprint(info, _type[0], attrs=[_type[1]])
+    elif isinstance(info,list):
+        for i in range(info):
+            cprint(i, _type[0], attrs=[_type[1]])
 
 
 def save_checkpoint(net, cfg, final=True, datasetname='COCO',epoch=10):
     if final:
-        torch.save(net.state_dict(), cfg.model.weights_save + \
-                'Final_M2Det_{}_size{}_net{}.pth'.format(datasetname, cfg.model.input_size, cfg.model.m2det_config.backbone))
+        torch.save(
+            net.state_dict(),
+            (
+                cfg.model.weights_save
+                + f'Final_M2Det_{datasetname}_size{cfg.model.input_size}_net{cfg.model.m2det_config.backbone}.pth'
+            ),
+        )
+
     else:
-        torch.save(net.state_dict(), cfg.model.weights_save + \
-                'M2Det_{}_size{}_net{}_epoch{}.pth'.format(datasetname, cfg.model.input_size, cfg.model.m2det_config.backbone,epoch))
+        torch.save(
+            net.state_dict(),
+            (
+                cfg.model.weights_save
+                + f'M2Det_{datasetname}_size{cfg.model.input_size}_net{cfg.model.m2det_config.backbone}_epoch{epoch}.pth'
+            ),
+        )
 
 
 
@@ -125,8 +130,6 @@ def write_logger(info_dict,logger,iteration,status):
     if status:
         for tag,value in info_dict.items():
             logger.scalar_summary(tag, value, iteration)
-    else:
-        pass
 
 def image_forward(img, net, cuda, priors, detector, transform):
     w,h = img.shape[1],img.shape[0]

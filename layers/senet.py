@@ -334,17 +334,17 @@ class SENet(nn.Module):
                 nn.BatchNorm2d(planes * block.expansion),
             )
 
-        layers = []
-        layers.append(block(self.inplanes, planes, groups, reduction, stride,
-                            downsample))
+        layers = [block(self.inplanes, planes, groups, reduction, stride, downsample)]
         self.inplanes = planes * block.expansion
-        for i in range(1, blocks):
-            layers.append(block(self.inplanes, planes, groups, reduction))
+        layers.extend(
+            block(self.inplanes, planes, groups, reduction)
+            for _ in range(1, blocks)
+        )
 
         return nn.Sequential(*layers)
 
     def features(self, x, out_inds):
-        outs = list()
+        outs = []
         for i,l in enumerate([self.layer0, self.layer1, self.layer2, self.layer3, self.layer4]):
             x = l(x)
             if i in out_inds:
@@ -362,10 +362,12 @@ def initialize_pretrained_model(model, num_classes, settings):
     #         settings['num_classes'], num_classes)
     ###model.load_state_dict(model_zoo.load_url(settings['url']))
     pretrain_dict = model_zoo.load_url(settings['url'])
-    model_dict = {}
-    for k, v in pretrain_dict.items():
-        if not k.startswith('last_linear'):
-            model_dict[k] = v
+    model_dict = {
+        k: v
+        for k, v in pretrain_dict.items()
+        if not k.startswith('last_linear')
+    }
+
     import torch
     model_dict.update({'last_linear.weight':torch.rand(num_classes,2048), 'last_linear.bias': torch.zeros(num_classes)})
     model.load_state_dict(model_dict)

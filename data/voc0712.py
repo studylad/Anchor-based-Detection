@@ -116,7 +116,7 @@ class AnnotationTransform(object):
         Returns:
             a list containing lists of bounding boxes  [bbox coords, class name]
         """
-        res = np.empty((0,5)) 
+        res = np.empty((0,5))
         for obj in target.iter('object'):
             difficult = int(obj.find('difficult').text) == 1
             if not self.keep_difficult and difficult:
@@ -126,7 +126,7 @@ class AnnotationTransform(object):
 
             pts = ['xmin', 'ymin', 'xmax', 'ymax']
             bndbox = []
-            for i, pt in enumerate(pts):
+            for pt in pts:
                 cur_pt = int(bbox.find(pt).text) - 1
                 # scale height or width
                 #cur_pt = cur_pt / width if i % 2 == 0 else cur_pt / height
@@ -134,7 +134,7 @@ class AnnotationTransform(object):
             label_idx = self.class_to_ind[name]
             bndbox.append(label_idx)
             res = np.vstack((res,bndbox))  # [xmin, ymin, xmax, ymax, label_ind]
-            # img_id = target.find('filename').text[:-4]
+                # img_id = target.find('filename').text[:-4]
 
         return res  # [[xmin, ymin, xmax, ymax, label_ind], ... ]
 
@@ -166,12 +166,16 @@ class VOCDetection(data.Dataset):
         self.name = dataset_name
         self._annopath = os.path.join('%s', 'Annotations', '%s.xml')
         self._imgpath = os.path.join('%s', 'JPEGImages', '%s.jpg')
-        self.ids = list()
+        self.ids = []
         for (year, name) in image_sets:
             self._year = year
-            rootpath = os.path.join(self.root, 'VOC' + year)
-            for line in open(os.path.join(rootpath, 'ImageSets', 'Main', name + '.txt')):
-                self.ids.append((rootpath, line.strip()))
+            rootpath = os.path.join(self.root, f'VOC{year}')
+            self.ids.extend(
+                (rootpath, line.strip())
+                for line in open(
+                    os.path.join(rootpath, 'ImageSets', 'Main', name + '.txt')
+                )
+            )
 
     def __getitem__(self, index):
         img_id = self.ids[index]
@@ -254,19 +258,17 @@ class VOCDetection(data.Dataset):
 
     def _get_voc_results_file_template(self):
         filename = 'comp4_det_test' + '_{:s}.txt'
-        filedir = os.path.join(
-            self.root, 'results', 'VOC' + self._year, 'Main')
+        filedir = os.path.join(self.root, 'results', f'VOC{self._year}', 'Main')
         if not os.path.exists(filedir):
             os.makedirs(filedir)
-        path = os.path.join(filedir, filename)
-        return path
+        return os.path.join(filedir, filename)
 
     def _write_voc_results_file(self, all_boxes):
         for cls_ind, cls in enumerate(VOC_CLASSES):
-            cls_ind = cls_ind 
+            cls_ind = cls_ind
             if cls == '__background__':
                 continue
-            print('Writing {} VOC results file'.format(cls))
+            print(f'Writing {cls} VOC results file')
             filename = self._get_voc_results_file_template().format(cls)
             with open(filename, 'wt') as f:
                 for im_ind, index in enumerate(self.ids):
@@ -281,26 +283,21 @@ class VOCDetection(data.Dataset):
                                 dets[k, 2] + 1, dets[k, 3] + 1))
 
     def _do_python_eval(self, output_dir='output'):
-        rootpath = os.path.join(self.root, 'VOC' + self._year)
+        rootpath = os.path.join(self.root, f'VOC{self._year}')
         name = self.image_set[0][1]
         annopath = os.path.join(
                                 rootpath,
                                 'Annotations',
                                 '{:s}.xml')
-        imagesetfile = os.path.join(
-                                rootpath,
-                                'ImageSets',
-                                'Main',
-                                name+'.txt')
+        imagesetfile = os.path.join(rootpath, 'ImageSets', 'Main', f'{name}.txt')
         cachedir = os.path.join(self.root, 'annotations_cache')
         aps = []
         # The PASCAL VOC metric changed in 2010
-        use_07_metric = True if int(self._year) < 2010 else False
+        use_07_metric = int(self._year) < 2010
         print('VOC07 metric? ' + ('Yes' if use_07_metric else 'No'))
         if output_dir is not None and not os.path.isdir(output_dir):
             os.mkdir(output_dir)
-        for i, cls in enumerate(VOC_CLASSES):
-
+        for cls in VOC_CLASSES:
             if cls == '__background__':
                 continue
 
@@ -311,7 +308,7 @@ class VOCDetection(data.Dataset):
             aps += [ap]
             print('AP for {} = {:.4f}'.format(cls, ap))
             if output_dir is not None:
-                with open(os.path.join(output_dir, cls + '_pr.pkl'), 'wb') as f:
+                with open(os.path.join(output_dir, f'{cls}_pr.pkl'), 'wb') as f:
                     pickle.dump({'rec': rec, 'prec': prec, 'ap': ap}, f)
         print('Mean AP = {:.4f}'.format(np.mean(aps)))
         print('~~~~~~~~')
@@ -342,8 +339,8 @@ def detection_collate(batch):
     """
     targets = []
     imgs = []
-    for _, sample in enumerate(batch):
-        for _, tup in enumerate(sample):
+    for sample in batch:
+        for tup in sample:
             if torch.is_tensor(tup):
                 imgs.append(tup)
             elif isinstance(tup, type(np.empty(0))):

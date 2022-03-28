@@ -16,20 +16,18 @@ def reglayer_scale(size, num_layer, size_the):
     return reg_layer_size
 
 def get_scales(size, size_pattern):
-    size_list = []
-    for x in size_pattern:
-        size_list += [round(x * size, 2)]
-    return  size_list
+    return [round(x * size, 2) for x in size_pattern]
 
 def aspect_ratio(num):
-    as_ra = []
-    for _ in range(num):
-        as_ra += [[2, 3]]
-    return as_ra
+    return [[2, 3] for _ in range(num)]
 
 def mk_anchors(size, multiscale_size, size_pattern, step_pattern, num_reglayer = 5, param = 2):
-    cfg = dict()
-    cfg['feature_maps'] = reglayer_scale(size, num_reglayer, param if size >= multiscale_size else 0)
+    cfg = {
+        'feature_maps': reglayer_scale(
+            size, num_reglayer, param if size >= multiscale_size else 0
+        )
+    }
+
     cfg['min_dim'] = size
     cfg['steps'] = step_pattern
     cfg['min_sizes'] = get_scales(multiscale_size, size_pattern[:-1])
