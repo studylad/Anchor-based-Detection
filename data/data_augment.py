@@ -54,8 +54,8 @@ def _crop(image, boxes, labels):
             roi = np.array((l, t, l + w, t + h))
 
             iou = matrix_iou(boxes, roi[np.newaxis])
-            
-            if not (min_iou <= iou.min() and iou.max() <= max_iou):
+
+            if min_iou > iou.min() or iou.max() > max_iou:
                 continue
 
             image_t = image[roi[1]:roi[3], roi[0]:roi[2]]

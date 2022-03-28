@@ -42,7 +42,7 @@ def test_net(save_folder, net, detector, cuda, testset, transform, max_per_image
         os.mkdir(save_folder)
 
     num_images = len(testset)
-    print_info('=> Total {} images to test.'.format(num_images),['yellow','bold'])
+    print_info(f'=> Total {num_images} images to test.', ['yellow','bold'])
     num_classes = cfg.model.m2det_config.num_classes
     all_boxes = [[[] for _ in range(num_images)] for _ in range(num_classes)]
 
@@ -80,7 +80,7 @@ if __name__ == '__main__':
     init_net(net, cfg, args.trained_model)
     print_info('===> Finished constructing and loading model',['yellow','bold'])
     net.eval()
-    _set = 'eval_sets' if not args.test else 'test_sets'
+    _set = 'test_sets' if args.test else 'eval_sets'
     testset = get_dataloader(cfg, args.dataset, _set)
     if cfg.test_cfg.cuda:
         net = net.cuda()

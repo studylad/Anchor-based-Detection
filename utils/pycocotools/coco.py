@@ -73,11 +73,14 @@ class COCO:
         # load dataset
         self.dataset,self.anns,self.cats,self.imgs = dict(),dict(),dict(),dict()
         self.imgToAnns, self.catToImgs = defaultdict(list), defaultdict(list)
-        if not annotation_file == None:
+        if not annotation_file is None:
             print('loading annotations into memory...')
             tic = time.time()
             dataset = json.load(open(annotation_file, 'r'))
-            assert type(dataset)==dict, 'annotation file format {} not supported'.format(type(dataset))
+            assert (
+                type(dataset) == dict
+            ), f'annotation file format {type(dataset)} not supported'
+
             print('Done (t={:0.2f}s)'.format(time.time()- tic))
             self.dataset = dataset
             self.createIndex()
@@ -119,7 +122,7 @@ class COCO:
         :return:
         """
         for key, value in self.dataset['info'].items():
-            print('{}: {}'.format(key, value))
+            print(f'{key}: {value}')
 
     def getAnnIds(self, imgIds=[], catIds=[], areaRng=[], iscrowd=None):
         """
@@ -136,18 +139,18 @@ class COCO:
         if len(imgIds) == len(catIds) == len(areaRng) == 0:
             anns = self.dataset['annotations']
         else:
-            if not len(imgIds) == 0:
+            if len(imgIds) != 0:
                 lists = [self.imgToAnns[imgId] for imgId in imgIds if imgId in self.imgToAnns]
                 anns = list(itertools.chain.from_iterable(lists))
             else:
                 anns = self.dataset['annotations']
             anns = anns if len(catIds)  == 0 else [ann for ann in anns if ann['category_id'] in catIds]
             anns = anns if len(areaRng) == 0 else [ann for ann in anns if ann['area'] > areaRng[0] and ann['area'] < areaRng[1]]
-        if not iscrowd == None:
-            ids = [ann['id'] for ann in anns if ann['iscrowd'] == iscrowd]
-        else:
-            ids = [ann['id'] for ann in anns]
-        return ids
+        return (
+            [ann['id'] for ann in anns]
+            if iscrowd is None
+            else [ann['id'] for ann in anns if ann['iscrowd'] == iscrowd]
+        )
 
     def getCatIds(self, catNms=[], supNms=[], catIds=[]):
         """
@@ -161,15 +164,12 @@ class COCO:
         supNms = supNms if type(supNms) == list else [supNms]
         catIds = catIds if type(catIds) == list else [catIds]
 
-        if len(catNms) == len(supNms) == len(catIds) == 0:
-            cats = self.dataset['categories']
-        else:
-            cats = self.dataset['categories']
+        cats = self.dataset['categories']
+        if not len(catNms) == len(supNms) == len(catIds) == 0:
             cats = cats if len(catNms) == 0 else [cat for cat in cats if cat['name']          in catNms]
             cats = cats if len(supNms) == 0 else [cat for cat in cats if cat['supercategory'] in supNms]
             cats = cats if len(catIds) == 0 else [cat for cat in cats if cat['id']            in catIds]
-        ids = [cat['id'] for cat in cats]
-        return ids
+        return [cat['id'] for cat in cats]
 
     def getImgIds(self, imgIds=[], catIds=[]):
         '''
@@ -239,7 +239,11 @@ class COCO:
             datasetType = 'captions'
         else:
             raise Exception('datasetType not supported')
-        if datasetType == 'instances':
+        if datasetType == 'captions':
+            for ann in anns:
+                print(ann['caption'])
+
+        elif datasetType == 'instances':
             ax = plt.gca()
             ax.set_autoscale_on(False)
             polygons = []
@@ -250,16 +254,20 @@ class COCO:
                     if type(ann['segmentation']) == list:
                         # polygon
                         for seg in ann['segmentation']:
-                            poly = np.array(seg).reshape((int(len(seg)/2), 2))
+                            poly = np.array(seg).reshape((len(seg) // 2, 2))
                             polygons.append(Polygon(poly))
                             color.append(c)
                     else:
                         # mask
                         t = self.imgs[ann['image_id']]
-                        if type(ann['segmentation']['counts']) == list:
-                            rle = maskUtils.frPyObjects([ann['segmentation']], t['height'], t['width'])
-                        else:
-                            rle = [ann['segmentation']]
+                        rle = (
+                            maskUtils.frPyObjects(
+                                [ann['segmentation']], t['height'], t['width']
+                            )
+                            if type(ann['segmentation']['counts']) == list
+                            else [ann['segmentation']]
+                        )
+
                         m = maskUtils.decode(rle)
                         img = np.ones( (m.shape[0], m.shape[1], 3) )
                         if ann['iscrowd'] == 1:
@@ -273,7 +281,7 @@ class COCO:
                     # turn skeleton into zero-based index
                     sks = np.array(self.loadCats(ann['category_id'])[0]['skeleton'])-1
                     kp = np.array(ann['keypoints'])
-                    x = kp[0::3]
+                    x = kp[::3]
                     y = kp[1::3]
                     v = kp[2::3]
                     for sk in sks:
@@ -285,9 +293,6 @@ class COCO:
             ax.add_collection(p)
             p = PatchCollection(polygons, facecolor='none', edgecolors=color, linewidths=2)
             ax.add_collection(p)
-        elif datasetType == 'captions':
-            for ann in anns:
-                print(ann['caption'])
 
     def loadRes(self, resFile):
         """
@@ -296,11 +301,11 @@ class COCO:
         :return: res (obj)         : result api object
         """
         res = COCO()
-        res.dataset['images'] = [img for img in self.dataset['images']]
+        res.dataset['images'] = list(self.dataset['images'])
 
         print('Loading and preparing results...')
         tic = time.time()
-        if type(resFile) == str or type(resFile) == unicode:
+        if type(resFile) in [str, unicode]:
             anns = json.load(open(resFile))
         elif type(resFile) == np.ndarray:
             anns = self.loadNumpyAnnotations(resFile)
@@ -311,16 +316,19 @@ class COCO:
         assert set(annsImgIds) == (set(annsImgIds) & set(self.getImgIds())), \
                'Results do not correspond to current coco set'
         if 'caption' in anns[0]:
-            imgIds = set([img['id'] for img in res.dataset['images']]) & set([ann['image_id'] for ann in anns])
+            imgIds = {img['id'] for img in res.dataset['images']} & {
+                ann['image_id'] for ann in anns
+            }
+
             res.dataset['images'] = [img for img in res.dataset['images'] if img['id'] in imgIds]
             for id, ann in enumerate(anns):
                 ann['id'] = id+1
-        elif 'bbox' in anns[0] and not anns[0]['bbox'] == []:
+        elif 'bbox' in anns[0] and anns[0]['bbox'] != []:
             res.dataset['categories'] = copy.deepcopy(self.dataset['categories'])
             for id, ann in enumerate(anns):
                 bb = ann['bbox']
                 x1, x2, y1, y2 = [bb[0], bb[0]+bb[2], bb[1], bb[1]+bb[3]]
-                if not 'segmentation' in ann:
+                if 'segmentation' not in ann:
                     ann['segmentation'] = [[x1, y1, x1, y2, x2, y2, x2, y1]]
                 ann['area'] = bb[2]*bb[3]
                 ann['id'] = id+1
@@ -330,7 +338,7 @@ class COCO:
             for id, ann in enumerate(anns):
                 # now only support compressed RLE format as segmentation results
                 ann['area'] = maskUtils.area(ann['segmentation'])
-                if not 'bbox' in ann:
+                if 'bbox' not in ann:
                     ann['bbox'] = maskUtils.toBbox(ann['segmentation'])
                 ann['id'] = id+1
                 ann['iscrowd'] = 0
@@ -338,7 +346,7 @@ class COCO:
             res.dataset['categories'] = copy.deepcopy(self.dataset['categories'])
             for id, ann in enumerate(anns):
                 s = ann['keypoints']
-                x = s[0::3]
+                x = s[::3]
                 y = s[1::3]
                 x0,x1,y0,y1 = np.min(x), np.max(x), np.min(y), np.max(y)
                 ann['area'] = (x1-x0)*(y1-y0)
@@ -360,10 +368,7 @@ class COCO:
         if tarDir is None:
             print('Please specify target directory')
             return -1
-        if len(imgIds) == 0:
-            imgs = self.imgs.values()
-        else:
-            imgs = self.loadImgs(imgIds)
+        imgs = self.imgs.values() if len(imgIds) == 0 else self.loadImgs(imgIds)
         N = len(imgs)
         if not os.path.exists(tarDir):
             os.makedirs(tarDir)
@@ -388,7 +393,7 @@ class COCO:
         ann = []
         for i in range(N):
             if i % 1000000 == 0:
-                print('{}/{}'.format(i,N))
+                print(f'{i}/{N}')
             ann += [{
                 'image_id'  : int(data[i, 0]),
                 'bbox'  : [ data[i, 1], data[i, 2], data[i, 3], data[i, 4] ],
@@ -409,14 +414,12 @@ class COCO:
             # polygon -- a single object might consist of multiple parts
             # we merge all parts into one mask rle code
             rles = maskUtils.frPyObjects(segm, h, w)
-            rle = maskUtils.merge(rles)
+            return maskUtils.merge(rles)
         elif type(segm['counts']) == list:
             # uncompressed RLE
-            rle = maskUtils.frPyObjects(segm, h, w)
+            return maskUtils.frPyObjects(segm, h, w)
         else:
-            # rle
-            rle = ann['segmentation']
-        return rle
+            return segm
 
     def annToMask(self, ann):
         """
@@ -424,5 +427,4 @@ class COCO:
         :return: binary mask (numpy 2D array)
         """
         rle = self.annToRLE(ann)
-        m = maskUtils.decode(rle)
-        return m
+        return maskUtils.decode(rle)

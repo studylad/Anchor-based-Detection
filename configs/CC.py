@@ -18,8 +18,10 @@ class ConfigDict(Dict):
         try:
             value = super(ConfigDict, self).__getattr__(name)
         except KeyError:
-            ex = AttributeError("'{}' object has no attribute '{}'".format(
-                self.__class__.__name__, name))
+            ex = AttributeError(
+                f"'{self.__class__.__name__}' object has no attribute '{name}'"
+            )
+
         except Exception as e:
             ex = e
         else:
@@ -30,19 +32,19 @@ class ConfigDict(Dict):
 def add_args(parser, cfg, prefix=''):
     for k, v in cfg.items():
         if isinstance(v, str):
-            parser.add_argument('--' + prefix + k)
+            parser.add_argument(f'--{prefix}{k}')
         elif isinstance(v, int):
-            parser.add_argument('--' + prefix + k, type=int)
+            parser.add_argument(f'--{prefix}{k}', type=int)
         elif isinstance(v, float):
-            parser.add_argument('--' + prefix + k, type=float)
+            parser.add_argument(f'--{prefix}{k}', type=float)
         elif isinstance(v, bool):
-            parser.add_argument('--' + prefix + k, action='store_true')
+            parser.add_argument(f'--{prefix}{k}', action='store_true')
         elif isinstance(v, dict):
-            add_args(parser, v, k + '.')
+            add_args(parser, v, f'{k}.')
         elif isinstance(v, Iterable):
-            parser.add_argument('--' + prefix + k, type=type(v[0]), nargs='+')
+            parser.add_argument(f'--{prefix}{k}', type=type(v[0]), nargs='+')
         else:
-            print('connot parse key {} of type {}'.format(prefix + k, type(v)))
+            print(f'connot parse key {prefix + k} of type {type(v)}')
     return parser
 
 
@@ -113,10 +115,9 @@ class Config(object):
 
     def __init__(self, cfg_dict=None, filename=None):
         if cfg_dict is None:
-            cfg_dict = dict()
+            cfg_dict = {}
         elif not isinstance(cfg_dict, dict):
-            raise TypeError('cfg_dict must be a dict, but got {}'.format(
-                type(cfg_dict)))
+            raise TypeError(f'cfg_dict must be a dict, but got {type(cfg_dict)}')
 
         super(Config, self).__setattr__('_cfg_dict', ConfigDict(cfg_dict))
         super(Config, self).__setattr__('_filename', filename)
@@ -135,8 +136,7 @@ class Config(object):
         return self._text
 
     def __repr__(self):
-        return 'Config (path: {}): {}'.format(self.filename,
-                                              self._cfg_dict.__repr__())
+        return f'Config (path: {self.filename}): {self._cfg_dict.__repr__()}'
 
     def __len__(self):
         return len(self._cfg_dict)

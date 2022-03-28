@@ -122,12 +122,9 @@ class ResNet(nn.Module):
                 nn.BatchNorm2d(planes * block.expansion),
             )
 
-        layers = []
-        layers.append(block(self.inplanes, planes, stride, downsample))
+        layers = [block(self.inplanes, planes, stride, downsample)]
         self.inplanes = planes * block.expansion
-        for i in range(1, blocks):
-            layers.append(block(self.inplanes, planes))
-
+        layers.extend(block(self.inplanes, planes) for _ in range(1, blocks))
         return nn.Sequential(*layers)
 
     def forward(self, x):
@@ -141,13 +138,12 @@ class ResNet(nn.Module):
         out4 = self.layer3(out3)
         out5 = self.layer4(out4)
 
-        if self.if_include_top:
-            x = self.avgpool(out5)
-            x = x.view(x.size(0), -1)
-            x = self.fc(x)
-            return x
-        else:
+        if not self.if_include_top:
             return (out3, out4, out5)
+        x = self.avgpool(out5)
+        x = x.view(x.size(0), -1)
+        x = self.fc(x)
+        return x
     
     def freeze_bn(self):
         for layer in self.modules():
@@ -161,7 +157,7 @@ class ResNet(nn.Module):
                 for param in m.parameters():
                     param.requires_grad = False
         for i in range(1, stage + 1):
-            layer = getattr(self, 'layer{}'.format(i))
+            layer = getattr(self, f'layer{i}')
             layer.eval()
             for param in layer.parameters():
                 param.requires_grad = False

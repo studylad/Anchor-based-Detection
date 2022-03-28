@@ -63,12 +63,12 @@ class M2Det(nn.Module):
         self.conf = nn.ModuleList(conf_)        
     
     def forward(self,x):
-        loc,conf = list(),list() 
+        loc,conf = list(),list()
         C3,C4,C5= self.base(x)
-        
+
         sources = self.fpn([C3,C4,C5])
         sources[0] = self.Norm(sources[0])
-        
+
         for (x,l,c) in zip(sources, self.loc, self.conf):
             loc.append(l(x).permute(0, 2, 3, 1).contiguous())
             conf.append(c(x).permute(0, 2, 3, 1).contiguous())
@@ -76,17 +76,17 @@ class M2Det(nn.Module):
         loc = torch.cat([o.view(o.size(0), -1) for o in loc], 1)
         conf = torch.cat([o.view(o.size(0), -1) for o in conf], 1)
 
-        if self.phase == "test":
-            output = (
-                loc.view(loc.size(0), -1, 4),                   # loc preds
-                self.softmax(conf.view(-1, self.num_classes)),  # conf preds
+        return (
+            (
+                loc.view(loc.size(0), -1, 4),
+                self.softmax(conf.view(-1, self.num_classes)),
             )
-        else:
-            output = (
+            if self.phase == "test"
+            else (
                 loc.view(loc.size(0), -1, 4),
                 conf.view(conf.size(0), -1, self.num_classes),
             )
-        return output
+        )
 
     def init_model(self, base_model_path):
         def weights_init(m):
@@ -105,12 +105,9 @@ class M2Det(nn.Module):
 
     def load_weights(self, base_file):
         other, ext = os.path.splitext(base_file)
-        if ext == '.pkl' or '.pth':
-            print_info('Loading weights into state dict...')
-            self.load_state_dict(torch.load(base_file))
-            print_info('Finished!')
-        else:
-            print_info('Only .pth and .pkl files supported.')
+        print_info('Loading weights into state dict...')
+        self.load_state_dict(torch.load(base_file))
+        print_info('Finished!')
 
 def build_net(phase='train', size=320, config = None):
     return M2Det(phase, size, config)
